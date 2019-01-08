@@ -100,6 +100,8 @@ export type eventWithTime = event & {
 
 export type recordOptions = {
   emit?: (e: eventWithTime) => void;
+  checkoutEveryNth?: number;
+  checkoutEveryNms?: number;
 };
 
 export type observerParam = {

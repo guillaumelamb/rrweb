@@ -102,6 +102,20 @@ function save() {
 setInterval(save, 10 * 1000);
 ```
 
+By default, all the emitted events are required to replay a session and if you do not want to store all the events, you can use the checkout config.
+
+```js
+rrweb.record({
+  emit(event) {
+    // store the event in any way you like
+  },
+  checkoutEveryNth: 100, // checkout every 100 events
+  checkoutEveryNms: 60 * 1000, // checkout every 1 minute
+});
+```
+
+
+
 #### Privacy
 
 You may find some contents on the webpage which are not willing to be recorded, then you can use the following approaches:
