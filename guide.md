@@ -47,7 +47,7 @@ rrweb does **not** support IE11 and below, because it uses the `MutationObserver
 
 ### Record
 
-If you only include record code with `<script>`, then you can use the global variable `rrwebRecord` which is the same as `rrweb.record`.
+**If you only included the record code with `<script>`**, then you must use the global variable `rrwebRecord` instead of `rrweb.record`.
 The following sample code will use the variable `rrweb` which is the default exporter of this library.
 
 ```js
@@ -110,6 +110,80 @@ You may find some contents on the webpage which are not willing to be recorded, 
 - An element with the class name `.rr-ignore` will not record its input events.
 - `input[type="password"]` will be ignored as default.
 
+#### Checkout
+
+By default, all the emitted events are required to replay a session and if you do not want to store all the events, you can use the checkout config.
+
+**Most of the time you do not need to configure this**. But if you want to do something like capturing just the last N events from when an error has occurred, here is an example:
+
+```js
+// We use a two-dimensional array to store multiple events array
+const eventsMatrix = [[]];
+
+rrweb.record({
+  emit(event, isCheckout) {
+    // isCheckout is a flag to tell you the events has been checkout
+    if (isCheckout) {
+      eventsMatrix.push([]);
+    }
+    const lastEvents = eventsMatrix[eventsMatrix.length - 1];
+    lastEvents.push(event);
+  },
+  checkoutEveryNth: 200, // checkout every 200 events
+});
+
+// send last two events array to the backend
+window.onerror = function() {
+  const len = eventsMatrix.length;
+  const events = eventsMatrix[len - 2].concat(eventsMatrix[len - 1]);
+  const body = JSON.stringify({ events });
+  fetch('http://YOUR_BACKEND_API', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body,
+  });
+};
+```
+
+Due to the incremental-snapshot-chain mechanism rrweb used, we can not capture the last N events accurately. With the sample code above, you will finally get the last 200 to 400 events been sent to your backend.
+
+Similarly, you can also configure `checkoutEveryNms` to capture the last N minutes events:
+
+```js
+// We use a two-dimensional array to store multiple events array
+const eventsMatrix = [[]];
+
+rrweb.record({
+  emit(event, isCheckout) {
+    // isCheckout is a flag to tell you the events has been checkout
+    if (isCheckout) {
+      eventsMatrix.push([]);
+    }
+    const lastEvents = eventsMatrix[eventsMatrix.length - 1];
+    lastEvents.push(event);
+  },
+  checkoutEveryNms: 5 * 60 * 1000, // checkout every 5 minutes
+});
+
+// send last two events array to the backend
+window.onerror = function() {
+  const len = eventsMatrix.length;
+  const events = eventsMatrix[len - 2].concat(eventsMatrix[len - 1]);
+  const body = JSON.stringify({ events });
+  fetch('http://YOUR_BACKEND_API', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body,
+  });
+};
+```
+
+With the sample code above, you will finally get the last 5 to 10 minutes of events been sent to your backend.
+
 ### Replay
 
 You need to include the style sheet before replay:
@@ -141,6 +215,7 @@ The replayer accepts options as its constructor's second parameter, and it has t
 | loadTimeout  | 0             | timeout of loading remote style sheet           |
 | skipInactive | false         | whether to skip inactive time                   |
 | showWarning  | true          | whether to print warning messages during replay |
+| showDebug    | false         | whether to print debug messages during replay   |
 
 #### Use rrweb-player
 
@@ -171,9 +246,29 @@ new rrwebPlayer({
   target: document.body, // customizable root element
   data: {
     events,
+    autoPlay: true,
   },
 });
 ```
+
+#### Events
+
+Developers may want to extend the rrweb's replayer or respond to its events. Such as giving a notification when the replayer starts to skip inactive time.
+So rrweb expose a public API `on` which allow developers listen to the events and customize the reactions, and it has the following events:
+
+| event                  | description                        |
+| ---------------------- | ---------------------------------- |
+| start                  | started to replay                  |
+| pause                  | paused the replay                  |
+| resume                 | resumed the replay                 |
+| finish                 | finished the replay                |
+| fullsnapshot-rebuilded | rebuilded a full snapshot          |
+| load-stylesheet-start  | started to load remote stylesheets |
+| load-stylesheet-end    | loaded remote stylesheets          |
+| skip-start             | started to skip inactive time      |
+| skip-end               | skipped inactive time              |
+
+The rrweb-replayer also re-expose the event listener via a `component.addEventListener` API.
 
 ## API
 

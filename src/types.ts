@@ -98,8 +98,15 @@ export type eventWithTime = event & {
   delay?: number;
 };
 
+export type blockClass = string | RegExp;
+
 export type recordOptions = {
-  emit?: (e: eventWithTime) => void;
+  emit?: (e: eventWithTime, isCheckout?: boolean) => void;
+  checkoutEveryNth?: number;
+  checkoutEveryNms?: number;
+  blockClass?: blockClass;
+  ignoreClass?: string;
+  inlineStylesheet?: boolean;
 };
 
 export type observerParam = {
@@ -109,6 +116,9 @@ export type observerParam = {
   scrollCb: scrollCallback;
   viewportResizeCb: viewportResizeCallback;
   inputCb: inputCallback;
+  blockClass: blockClass;
+  ignoreClass: string;
+  inlineStylesheet: boolean;
 };
 
 export type textCursor = {
@@ -134,8 +144,7 @@ export type attributeMutation = {
 };
 
 export type removedNodeMutation = {
-  parentId?: number;
-  parentNode?: Node;
+  parentId: number;
   id: number;
 };
 
@@ -228,8 +237,11 @@ export type playerConfig = {
   speed: number;
   root: Element;
   loadTimeout: number;
-  skipInactive: Boolean;
-  showWarning: Boolean;
+  skipInactive: boolean;
+  showWarning: boolean;
+  showDebug: boolean;
+  blockClass: string;
+  liveMode: boolean;
 };
 
 export type playerMetaData = {
@@ -248,3 +260,17 @@ export type actionWithDelay = {
   doAction: () => void;
   delay: number;
 };
+
+export enum ReplayerEvents {
+  Start = 'start',
+  Pause = 'pause',
+  Resume = 'resume',
+  Resize = 'resize',
+  Finish = 'finish',
+  FullsnapshotRebuilded = 'fullsnapshot-rebuilded',
+  LoadStylesheetStart = 'load-stylesheet-start',
+  LoadStylesheetEnd = 'load-stylesheet-end',
+  SkipStart = 'skip-start',
+  SkipEnd = 'skip-end',
+  MouseInteraction = 'mouse-interaction',
+}

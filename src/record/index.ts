@@ -18,16 +18,75 @@ function wrapEvent(e: event): eventWithTime {
 }
 
 function record(options: recordOptions = {}): listenerHandler | undefined {
-  const { emit } = options;
+  const {
+    emit,
+    checkoutEveryNms,
+    checkoutEveryNth,
+    blockClass = 'rr-block',
+    ignoreClass = 'rr-ignore',
+    inlineStylesheet = true,
+  } = options;
   // runtime checks for user options
   if (!emit) {
     throw new Error('emit function is required');
   }
+
+  let lastFullSnapshotEvent: eventWithTime;
+  let incrementalSnapshotCount = 0;
+  const wrappedEmit = (e: eventWithTime, isCheckout?: boolean) => {
+    emit(e, isCheckout);
+    if (e.type === EventType.FullSnapshot) {
+      lastFullSnapshotEvent = e;
+      incrementalSnapshotCount = 0;
+    } else if (e.type === EventType.IncrementalSnapshot) {
+      incrementalSnapshotCount++;
+      const exceedCount =
+        checkoutEveryNth && incrementalSnapshotCount >= checkoutEveryNth;
+      const exceedTime =
+        checkoutEveryNms &&
+        e.timestamp - lastFullSnapshotEvent.timestamp > checkoutEveryNms;
+      if (exceedCount || exceedTime) {
+        takeFullSnapshot(true);
+      }
+    }
+  };
+
+  function takeFullSnapshot(isCheckout = false) {
+    wrappedEmit(
+      wrapEvent({
+        type: EventType.Meta,
+        data: {
+          href: window.location.href,
+          width: getWindowWidth(),
+          height: getWindowHeight(),
+        },
+      }),
+      isCheckout,
+    );
+    const [node, idNodeMap] = snapshot(document, blockClass, inlineStylesheet);
+    if (!node) {
+      return console.warn('Failed to snapshot the document');
+    }
+    mirror.map = idNodeMap;
+    wrappedEmit(
+      wrapEvent({
+        type: EventType.FullSnapshot,
+        data: {
+          node,
+          initialOffset: {
+            left: document.documentElement!.scrollLeft,
+            top: document.documentElement!.scrollTop,
+          },
+        },
+      }),
+    );
+  }
+
   try {
     const handlers: listenerHandler[] = [];
     handlers.push(
       on('DOMContentLoaded', () => {
-        emit(
+        wrappedEmit(
           wrapEvent({
             type: EventType.DomContentLoaded,
             data: {},
@@ -36,37 +95,12 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
       }),
     );
     const init = () => {
-      emit(
-        wrapEvent({
-          type: EventType.Meta,
-          data: {
-            href: window.location.href,
-            width: getWindowWidth(),
-            height: getWindowHeight(),
-          },
-        }),
-      );
-      const [node, idNodeMap] = snapshot(document);
-      if (!node) {
-        return console.warn('Failed to snapshot the document');
-      }
-      mirror.map = idNodeMap;
-      emit(
-        wrapEvent({
-          type: EventType.FullSnapshot,
-          data: {
-            node,
-            initialOffset: {
-              left: document.documentElement!.scrollLeft,
-              top: document.documentElement!.scrollTop,
-            },
-          },
-        }),
-      );
+      takeFullSnapshot();
+
       handlers.push(
         initObservers({
           mutationCb: m =>
-            emit(
+            wrappedEmit(
               wrapEvent({
                 type: EventType.IncrementalSnapshot,
                 data: {
@@ -76,7 +110,7 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
               }),
             ),
           mousemoveCb: positions =>
-            emit(
+            wrappedEmit(
               wrapEvent({
                 type: EventType.IncrementalSnapshot,
                 data: {
@@ -86,7 +120,7 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
               }),
             ),
           mouseInteractionCb: d =>
-            emit(
+            wrappedEmit(
               wrapEvent({
                 type: EventType.IncrementalSnapshot,
                 data: {
@@ -96,7 +130,7 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
               }),
             ),
           scrollCb: p =>
-            emit(
+            wrappedEmit(
               wrapEvent({
                 type: EventType.IncrementalSnapshot,
                 data: {
@@ -106,7 +140,7 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
               }),
             ),
           viewportResizeCb: d =>
-            emit(
+            wrappedEmit(
               wrapEvent({
                 type: EventType.IncrementalSnapshot,
                 data: {
@@ -116,7 +150,7 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
               }),
             ),
           inputCb: v =>
-            emit(
+            wrappedEmit(
               wrapEvent({
                 type: EventType.IncrementalSnapshot,
                 data: {
@@ -125,6 +159,9 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
                 },
               }),
             ),
+          blockClass,
+          ignoreClass,
+          inlineStylesheet,
         }),
       );
     };
@@ -138,7 +175,7 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
         on(
           'load',
           () => {
-            emit(
+            wrappedEmit(
               wrapEvent({
                 type: EventType.Load,
                 data: {},

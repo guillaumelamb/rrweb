@@ -3,6 +3,7 @@ import {
   throttleOptions,
   listenerHandler,
   hookResetter,
+  blockClass,
 } from './types';
 import { INode } from 'rrweb-snapshot';
 
@@ -113,16 +114,40 @@ export function getWindowWidth(): number {
   );
 }
 
-const BLOCK_CLASS = 'rr-block';
-export function isBlocked(node: Node | null): boolean {
+export function isBlocked(node: Node | null, blockClass: blockClass): boolean {
   if (!node) {
     return false;
   }
   if (node.nodeType === node.ELEMENT_NODE) {
-    return (
-      (node as HTMLElement).classList.contains(BLOCK_CLASS) ||
-      isBlocked(node.parentNode)
-    );
+    let needBlock = false;
+    if (typeof blockClass === 'string') {
+      needBlock = (node as HTMLElement).classList.contains(blockClass);
+    } else {
+      (node as HTMLElement).classList.forEach(className => {
+        if (blockClass.test(className)) {
+          needBlock = true;
+        }
+      });
+    }
+    return needBlock || isBlocked(node.parentNode, blockClass);
   }
-  return isBlocked(node.parentNode);
+  return isBlocked(node.parentNode, blockClass);
+}
+
+export function isAncestorRemoved(target: INode): boolean {
+  const id = mirror.getId(target);
+  if (!mirror.has(id)) {
+    return true;
+  }
+  if (
+    target.parentNode &&
+    target.parentNode.nodeType === target.DOCUMENT_NODE
+  ) {
+    return false;
+  }
+  // if the root is not document, it means the node is not in the DOM tree anymore
+  if (!target.parentNode) {
+    return true;
+  }
+  return isAncestorRemoved((target.parentNode as unknown) as INode);
 }
